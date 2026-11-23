@@ -1,0 +1,246 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دستیار هوشمند ترید</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101827;color:white;font-family:tahoma}
+header{background:#172438;padding:20px;text-align:center}
+h2{color:#42d6a4}
+.container{padding:15px;max-width:650px;margin:auto}
+.card{background:#1d2b40;padding:16px;border-radius:14px;margin:12px 0}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.price{font-size:21px;font-weight:bold;color:#42d6a4}
+.small{font-size:12px;color:#aab8ca}
+select,input{background:#101827;color:white;border:1px solid #40516a;padding:11px;border-radius:8px;width:100%;margin:7px 0}
+button{background:#16a879;color:white;border:0;padding:12px;border-radius:9px;font-weight:bold}
+.secondary{background:#34465f}
+.signal{text-align:center;font-size:23px;font-weight:bold;padding:15px}
+.green{color:#42d6a4}
+.red{color:#ff6877}
+.yellow{color:#ffd166}
+table{width:100%;font-size:13px;border-collapse:collapse}
+td{padding:10px 4px;border-bottom:1px solid #34465f}
+.notice{background:#26364c;padding:12px;border-radius:9px;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+<h2>🤖 دستیار هوشمند ترید</h2>
+<p>تحلیل بازار ارز دیجیتال | نوبیتکس</p>
+</header>
+<div class="container">
+<div class="card">
+<div class="row">
+<strong>وضعیت اتصال بازار</strong>
+<span id="connection">در حال اتصال...</span>
+</div>
+<p class="small" id="updated">منتظر دریافت قیمت‌ها</p>
+</div>
+<div class="card">
+<strong>انتخاب ارز</strong>
+<select id="coin" onchange="loadPrice()">
+<option value="btc">بیت کوین BTC</option>
+<option value="eth">اتریوم ETH</option>
+<option value="sol">سولانا SOL</option>
+<option value="xrp">ریپل XRP</option>
+</select>
+<div class="row">
+<span>قیمت فعلی (تومان)</span>
+<span class="price" id="price">---</span>
+</div>
+<div class="row">
+<span>تغییر روزانه</span>
+<span id="change">---</span>
+</div>
+</div>
+<div class="card">
+<h3>📊 تحلیل بازار</h3>
+<div class="signal yellow" id="signal">در انتظار داده کافی</div>
+<table>
+<tr><td>EMA 9</td><td id="ema9">---</td></tr>
+<tr><td>EMA 21</td><td id="ema21">---</td></tr>
+<tr><td>RSI 14</td><td id="rsi">---</td></tr>
+<tr><td>MACD</td><td id="macd">---</td></tr>
+</table>
+<p id="analysis">در انتظار تحلیل</p>
+</div>
+</div>
+
+<div class="container">
+
+<div class="card">
+<h3>🎯 مدیریت معامله</h3>
+<label>قیمت ورود (تومان)</label>
+<input id="entry" type="number" placeholder="قیمت ورود">
+<label>حد سود (درصد)</label>
+<input id="profit" type="number" value="3">
+<label>حد ضرر (درصد)</label>
+<input id="loss" type="number" value="2">
+<button onclick="calculate()">محاسبه حد سود و ضرر</button>
+<div id="result" class="notice">نتیجه محاسبه</div>
+</div>
+
+<div class="card">
+<h3>🔔 اعلان سیگنال</h3>
+<div id="alerts" class="notice">هنوز سیگنالی صادر نشده است.</div>
+<button onclick="notifyPermission()">فعال‌سازی اعلان گوشی</button>
+</div>
+
+<div class="card">
+<h3>🛡️ تأیید معامله</h3>
+<div id="approval" class="notice">در انتظار پیشنهاد</div>
+<button onclick="approve()">تأیید پیشنهاد</button>
+<button class="secondary" onclick="reject()">رد پیشنهاد</button>
+</div>
+
+<div class="card">
+<h3>📜 سوابق سیگنال‌ها</h3>
+<div id="history" class="small">هنوز سابقه‌ای ثبت نشده است.</div>
+</div>
+
+<div class="card">
+<p class="small">نسخه آزمایشی؛ ربات پیشنهاد می‌دهد و معامله واقعی انجام نمی‌دهد. تحلیل بر اساس نمونه‌های قیمت دریافتی است و تضمین سود نیست.</p>
+</div>
+</div>
+
+<script>
+const API="https://apiv2.nobitex.ir/market/stats";
+let prices={};
+let currentSignal="WAIT";
+let lastAlert="";
+let history=[];
+
+async function loadPrice(){
+ const coin=document.getElementById("coin").value;
+ try{
+  const response=await fetch(API+"?srcCurrency="+coin+"&dstCurrency=rls");
+  if(!response.ok)throw Error();
+  const data=await response.json();
+  const item=data.stats[coin+"-rls"];
+  if(!item)throw Error();
+  const price=Number(item.latest)/10;
+  const change=Number(item.dayChange);
+  if(!price)throw Error();
+
+  if(!prices[coin])prices[coin]=[];
+  prices[coin].push(price);
+  if(prices[coin].length>200)prices[coin].shift();
+
+  document.getElementById("price").innerText=price.toLocaleString("fa-IR");
+  document.getElementById("change").innerText=change.toFixed(2)+"٪";
+  document.getElementById("connection").innerText="متصل";
+  document.getElementById("updated").innerText="آخرین بروزرسانی: "+new Date().toLocaleTimeString("fa-IR");
+
+  analyze(coin);
+ }catch(e){
+  document.getElementById("connection").innerText="خطا در اتصال";
+ }
+}
+
+function ema(arr,n){
+ if(arr.length<n)return null;
+ let k=2/(n+1);
+ let v=arr.slice(0,n).reduce((a,b)=>a+b,0)/n;
+ for(let i=n;i<arr.length;i++)v=arr[i]*k+v*(1-k);
+ return v;
+}
+
+function rsi(arr){
+ if(arr.length<15)return null;
+ let gain=0,loss=0;
+ for(let i=arr.length-14;i<arr.length;i++){
+  let d=arr[i]-arr[i-1];
+  if(d>0)gain+=d;
+  else loss-=d;
+ }
+ if(loss===0)return 100;
+ return 100-100/(1+gain/loss);
+}
+
+function analyze(coin){
+ const a=prices[coin];
+ if(a.length<30){
+  document.getElementById("signal").innerText="در انتظار داده کافی";
+  return;
+ }
+ const e9=ema(a,9);
+ const e21=ema(a,21);
+ const m=ema(a,12)-ema(a,26);
+ const r=rsi(a);
+
+ document.getElementById("ema9").innerText=e9.toLocaleString("fa-IR");
+ document.getElementById("ema21").innerText=e21.toLocaleString("fa-IR");
+ document.getElementById("rsi").innerText=r.toFixed(2);
+ document.getElementById("macd").innerText=m.toFixed(2);
+
+ let s="WAIT";
+ if(e9>e21 && r<70 && m>0)s="BUY";
+ if(e9<e21 && r>30 && m<0)s="SELL";
+
+ currentSignal=s;
+ const el=document.getElementById("signal");
+ el.innerText=s==="BUY"?"🟢 پیشنهاد خرید":s==="SELL"?"🔴 پیشنهاد فروش":"🟡 فعلاً صبر کن";
+ el.className="signal "+(s==="BUY"?"green":s==="SELL"?"red":"yellow");
+
+ document.getElementById("analysis").innerText=
+ s==="BUY"?"نشانه‌های روند صعودی مشاهده شده است.":
+ s==="SELL"?"نشانه‌های روند نزولی مشاهده شده است.":
+ "شرایط ورود مشخص نیست.";
+
+ if(s!=="WAIT" && s!==lastAlert){
+  lastAlert=s;
+  document.getElementById("approval").innerText="پیشنهاد جدید: "+s;
+  document.getElementById("alerts").innerText="سیگنال جدید "+coin.toUpperCase()+": "+s;
+  history.unshift(new Date().toLocaleTimeString("fa-IR")+" | "+coin+" | "+s);
+  document.getElementById("history").innerText=history.join("\n");
+
+  if("Notification" in window && Notification.permission==="granted"){
+   new Notification("سیگنال جدید ترید",{body:coin.toUpperCase()+" : "+s});
+  }
+ }
+}
+
+function calculate(){
+ const e=Number(document.getElementById("entry").value);
+ const p=Number(document.getElementById("profit").value);
+ const l=Number(document.getElementById("loss").value);
+ if(!e||p<=0||l<=0){
+  alert("مقادیر معتبر وارد کنید");
+  return;
+ }
+ document.getElementById("result").innerHTML=
+ "حد سود: "+(e*(1+p/100)).toLocaleString("fa-IR")+" تومان<br>"+
+ "حد ضرر: "+(e*(1-l/100)).toLocaleString("fa-IR")+" تومان";
+}
+
+function notifyPermission(){
+ if(!("Notification" in window)){
+  alert("اعلان پشتیبانی نمی‌شود");
+  return;
+ }
+ Notification.requestPermission().then(p=>{
+  alert(p==="granted"?"اعلان فعال شد":"اجازه اعلان داده نشد");
+ });
+}
+
+function approve(){
+ if(currentSignal==="WAIT"){
+  alert("هنوز سیگنالی صادر نشده است");
+  return;
+ }
+ document.getElementById("approval").innerText="پیشنهاد بررسی و تأیید شد؛ سفارش واقعی ثبت نمی‌شود.";
+}
+
+function reject(){
+ document.getElementById("approval").innerText="پیشنهاد رد شد.";
+}
+
+loadPrice();
+setInterval(loadPrice,60000);
+</script>
+</body>
+</html>
